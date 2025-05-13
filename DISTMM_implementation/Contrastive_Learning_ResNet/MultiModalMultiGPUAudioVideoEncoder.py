@@ -77,7 +77,8 @@ class MultiModalMultiGPUAudioVideoEncoder(nn.module):
         #doing video along with a scatter, encode, and gather
 
         video_chunks = self._chunk_video(batch["video"])
-        zv_list, start = [], 0
+        #zv_list, start = [], 0
+        zv_list = []
 
         for chunk, encode, device in zip(video_chunks, self.video_encoder, self.video_gpu_devices):
             chunk = chunk.to(device, non_blocking=True)
@@ -89,11 +90,11 @@ class MultiModalMultiGPUAudioVideoEncoder(nn.module):
 
         #InfoONCE
 
-        t = self.temperature
+        temperature = self.temperature
 
         loss = 0.5 * (
 
-            self._info_nce(z_audio, t) + self._info_nce(z_audio,z_video, t)
+            self._info_nce(z_audio, temperature) + self._info_nce(z_audio,z_video, temperature)
 
         )
 
