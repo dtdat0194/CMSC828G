@@ -5,8 +5,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 import cv2
 import numpy as np
-import librosa
-
+#import librosa
+import torchaudio
 class MicroClipsDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         """
@@ -51,7 +51,15 @@ class MicroClipsDataset(Dataset):
 
         # Get video file name
         video_name = self.video_files[idx]
-        base_name = os.path.splitext(video_name)[0]  
+        #print("video_name:",video_name)
+
+        base_name = os.path.splitext(video_name)[0]
+        #print("base_name:",base_name)
+        file_id = base_name[:-8]
+        clip_index = base_name[-1]
+        #print("file_id:",file_id)
+        #print("clip_index:",clip_index)
+        #print()
         
         # Load video
         video_path = os.path.join(self.video_dir, video_name)
@@ -75,18 +83,18 @@ class MicroClipsDataset(Dataset):
         cap.release()
         
         # Load corresponding audio
-        audio_name = f"{base_name}.wav"
+        audio_name = f"{file_id}_audio_{clip_index}.wav"
         audio_path = os.path.join(self.audio_dir, audio_name)
         
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
         
         # Load audio
-        audio, sr = librosa.load(audio_path, sr=None)  
-        audio = torch.from_numpy(audio).float() 
+        audio, sr = torchaudio.load(audio_path)  
+        #audio = torch.from_numpy(audio).float() 
         
         # Load corresponding spectrogram
-        spec_name = f"{base_name}_spectrogram.png"
+        spec_name = f"{file_id}_audio_{clip_index}_spectrogram.png"
         spec_path = os.path.join(self.spectrogram_dir, spec_name)
         
         if not os.path.exists(spec_path):
@@ -126,12 +134,10 @@ def get_dataloader(root_dir, batch_size=32, shuffle=True, num_workers=4):
     )
     return dataloader
 
-# Example usage
-if __name__ == "__main__":
-    # Create dataloader
+def main():
     dataloader = get_dataloader(
-        root_dir='micro-clips',
-        batch_size=4,
+        root_dir='/cmlscratch/xyu054/DistMM/Contrastive_Learning_ResNet/dataset/micro-clips',
+        batch_size=1,
         shuffle=True
     )
     
@@ -143,3 +149,10 @@ if __name__ == "__main__":
         print(f"Spectrogram shape: {batch['spectrogram'].shape}")
         print(f"Video names: {batch['video_name']}")
         break  # Just test first batch 
+
+
+# Example usage
+if __name__ == "__main__":
+    # Create dataloader
+    main()
+    
