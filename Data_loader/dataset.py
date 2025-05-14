@@ -7,8 +7,9 @@ import cv2
 import numpy as np
 #import librosa
 import torchaudio
+from utils import load_and_transform_video_data, load_and_transform_audio_data
 class MicroClipsDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir, audio_gpu_device,video_gpu_devices, transform=None):
         """
         Args:
             root_dir (string): Directory with all the micro-clips.
@@ -19,6 +20,9 @@ class MicroClipsDataset(Dataset):
                     └── spectrograms/
             transform (callable, optional): Optional transform to be applied on video frames
         """
+        self.audio_gpu_device = audio_gpu_device
+        self.video_gpu_devices = video_gpu_devices
+
         self.root_dir = root_dir
         self.transform = transform
         
@@ -46,9 +50,9 @@ class MicroClipsDataset(Dataset):
         return len(self.video_files)
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
+        #if torch.is_tensor(idx):
+        #    idx = idx.tolist()
+        #print(idx)
         # Get video file name
         video_name = self.video_files[idx]
         #print("video_name:",video_name)
@@ -63,25 +67,23 @@ class MicroClipsDataset(Dataset):
         
         # Load video
         video_path = os.path.join(self.video_dir, video_name)
-        cap = cv2.VideoCapture(video_path)
-        
-        # Read first frame
-        ret, frame = cap.read()
-        if not ret:
-            raise RuntimeError(f"Failed to read video frame from {video_path}")
-        
-        # Convert BGR to RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Convert to PIL Image for transforms
-        frame = Image.fromarray(frame)
-        
-        # Apply transforms
-        if self.transform:
-            frame = self.transform(frame)
-        
-        cap.release()
-        
+        print()
+        print("self.video_dir",self.video_dir)
+        print("video_name",video_name)
+        print("video_path",video_path)
+        print()
+        video_data = load_and_transform_video_data([video_path],device = self.video_gpu_devices,clips_per_video = 1)
+        #video_data = video_data.permute(1,0,2,3,4,5)
+        video_data = video_data[0]
+        '''
+        B, S = video_data.shape[:2]
+        video_data = video_data.reshape(
+                    B * S, *video_data.shape[2:]
+                )
+                '''
+        print()
+        print("video_data loaded")
+        print()
         # Load corresponding audio
         audio_name = f"{file_id}_audio_{clip_index}.wav"
         audio_path = os.path.join(self.audio_dir, audio_name)
@@ -89,30 +91,22 @@ class MicroClipsDataset(Dataset):
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
         
-        # Load audio
-        audio, sr = torchaudio.load(audio_path)  
-        #audio = torch.from_numpy(audio).float() 
-        
-        # Load corresponding spectrogram
-        spec_name = f"{file_id}_audio_{clip_index}_spectrogram.png"
-        spec_path = os.path.join(self.spectrogram_dir, spec_name)
-        
-        if not os.path.exists(spec_path):
-            raise FileNotFoundError(f"Spectrogram not found: {spec_path}")
-        
-        # Load spectrogram
-        spectrogram = Image.open(spec_path)
-        spectrogram = transforms.ToTensor()(spectrogram)
-        
+        spectrogram_data = load_and_transform_audio_data([audio_path],device = self.audio_gpu_device,clips_per_video = 1)
+        #spectrogram_data = spectrogram_data.permute(1,0,2,3,4)
+        spectrogram_data = spectrogram_data[0]
+        '''
+        B, S = spectrogram_data.shape[:2]
+        spectrogram_data = spectrogram_data.reshape(
+                    B * S, *spectrogram_data.shape[2:]
+                )
+                '''
         return {
-            'video_frame': frame,
-            'audio': audio,
-            'audio_sr': sr,
-            'spectrogram': spectrogram,
-            'video_name': video_name
+            'video_data': video_data,
+            'spectrogram': spectrogram_data,
+            'file_id': file_id
         }
 
-def get_dataloader(root_dir, batch_size=32, shuffle=True, num_workers=4):
+def get_dataloader(root_dir, audio_gpu_device,video_gpu_devices,batch_size=32, shuffle=True, num_workers=1):
     """
     Create a DataLoader for the MicroClipsDataset
     
@@ -125,7 +119,7 @@ def get_dataloader(root_dir, batch_size=32, shuffle=True, num_workers=4):
     Returns:
         DataLoader: PyTorch DataLoader for the dataset
     """
-    dataset = MicroClipsDataset(root_dir=root_dir)
+    dataset = MicroClipsDataset(root_dir=root_dir,audio_gpu_device = audio_gpu_device,video_gpu_devices = video_gpu_devices)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -137,17 +131,31 @@ def get_dataloader(root_dir, batch_size=32, shuffle=True, num_workers=4):
 def main():
     dataloader = get_dataloader(
         root_dir='/cmlscratch/xyu054/DistMM/Contrastive_Learning_ResNet/dataset/micro-clips',
-        batch_size=1,
-        shuffle=True
+        audio_gpu_device = "cuda",
+        video_gpu_devices = "cuda",
+        batch_size=2,
+        shuffle=False,
+        num_workers = 0
     )
     
     # Test the dataloader
     for batch in dataloader:
-        print(f"Video frame shape: {batch['video_frame'].shape}")
-        print(f"Audio shape: {batch['audio'].shape}")
-        print(f"Audio sample rate: {batch['audio_sr']}")
-        print(f"Spectrogram shape: {batch['spectrogram'].shape}")
-        print(f"Video names: {batch['video_name']}")
+        video_data = batch['video_data']
+        spectrogram_data = batch['spectrogram']
+        file_id = batch['file_id']
+
+        B, S = video_data.shape[:2]
+        video_data = video_data.reshape(
+                    B * S, *video_data.shape[2:]
+                )
+        B, S = spectrogram_data.shape[:2]
+        spectrogram_data = spectrogram_data.reshape(
+                    B * S, *spectrogram_data.shape[2:]
+                )
+
+        print(f"Video frame shape: {video_data.shape}")
+        print(f"Spectrogram shape: {spectrogram_data.shape}")
+        print(f"Video names: {batch['file_id']}")
         break  # Just test first batch 
 
 
@@ -155,4 +163,5 @@ def main():
 if __name__ == "__main__":
     # Create dataloader
     main()
+    
     
