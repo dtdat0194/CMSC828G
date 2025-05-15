@@ -51,6 +51,7 @@ def waveform2melspec(waveform, sample_rate, num_mel_bins, target_length):
     p = target_length - n_frames
     # if p is too large (say >20%), flash a warning
     if abs(p) / n_frames > 0.2:
+        '''
         logging.warning(
             "Large gap between audio n_frames(%d) and "
             "target_length (%d). Is the audio_target_length "
@@ -58,6 +59,7 @@ def waveform2melspec(waveform, sample_rate, num_mel_bins, target_length):
             n_frames,
             target_length,
         )
+        '''
     # cut and pad
     if p > 0:
         fbank = torch.nn.functional.pad(fbank, (0, p), mode="constant", value=0)
@@ -134,7 +136,7 @@ def load_and_transform_audio_data(
     audio_paths,
     device,
     num_mel_bins=128,
-    target_length=204,
+    target_length=200,
     sample_rate=16000,
     clip_duration=2,
     clips_per_video=3,
@@ -172,7 +174,7 @@ def load_and_transform_audio_data(
             all_clips.append(waveform_melspec)
 
         normalize = transforms.Normalize(mean=mean, std=std)
-        all_clips = [normalize(ac).to(device) for ac in all_clips]
+        all_clips = [normalize(ac) for ac in all_clips]
 
         all_clips = torch.stack(all_clips, dim=0)
         audio_outputs.append(all_clips)
@@ -354,4 +356,4 @@ def load_and_transform_video_data(
         all_video = torch.stack(all_video, dim=0)
         video_outputs.append(all_video)
 
-    return torch.stack(video_outputs, dim=0).to(device)
+    return torch.stack(video_outputs, dim=0)
