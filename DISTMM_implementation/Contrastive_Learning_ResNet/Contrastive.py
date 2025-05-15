@@ -5,7 +5,7 @@ Based on Coding assignment from CMSC848M-0101: Selected Topics in Information Pr
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Backbones import VisionClassifier, TouchClassifier, AudioClassifier
+from Backbones import VisionClassifier, AudioClassifier
 
 class ModalityEncoder(nn.Module):
     def __init__(self, modality, output_dim):
@@ -27,40 +27,51 @@ class ModalityEncoder(nn.Module):
         x = torch.flatten(x,1)
         x = self.projection_layer(x)
         return x
-
+        '''
+from torchsummary import summary
+model = ModalityEncoder('vision',128)
+model.to("cuda")
+summary(model, (3,2, 256, 256))
+'''
 class ContrastiveLearning(nn.Module):
-    def __init__(self, modalities, feature_dim = 128, temperature=0.07):
+    def __init__(self, feature_dim = 128, temperature=0.07):
         super().__init__()
         # TODO: Initialize encoders and parameters
         self.vision_encoder = ModalityEncoder("vision", output_dim = feature_dim)
         self.audio_encoder = ModalityEncoder("audio", output_dim = feature_dim)
         self.temperature = temperature
 
-    def forward(self, batch):
+    def forward(self, video_data, spectrogram_data):
         # TODO: Implement forward pass
-        label = batch['label']
-        video = batch['video']
-        projected_video = self.vision_encoder(video)
-        
-        audio = batch['audio']
-        projected_audio = self.audio_encoder(audio)
-        
+        video_data = self.vision_encoder(video_data)
+        spectrogram_data = self.audio_encoder(spectrogram_data)
+        length = spectrogram_data.shape[0]
+        video_data = video_data.reshape(length, 3, 128)  # group every 3 rows together   
+        video_data = video_data.mean(dim=1)
+        #print("video_data.get_device() ",video_data.get_device() )
+        #print("spectrogram_data.get_device() ",spectrogram_data.get_device() )
 
-        loss = self.info_nce_loss(video,audio,label)
-        loss += self.info_nce_loss(audio,video,label)
-        
-        loss = loss/2
+        loss = self.info_nce_loss(video_data,spectrogram_data)
+        return video_data, spectrogram_data,loss
+    '''
+    def info_nce_loss(self, z1, z2, temperature):
 
-        return projected_audio, projected_video
+        z1 = F.normalize(z1, dim=1)
+        z2 = F.normalize(z2, dim=1)
+        logits = z1 @ z2.t() / temperature
+        labels = torch.arange(z1.size(0), device=logits.device)
 
-    def info_nce_loss(self, features_1, features_2, labels):
+        mean_loss = F.cross_entropy(logits, labels)
+        return mean_loss
+    '''
+    def info_nce_loss(self, features_1, features_2):
         # TODO: Implement InfoNCE loss
         #Inspired from https://github.com/arashkhoeini/infonce/blob/main/infonce/infonce.py
 
         similarity = torch.matmul(features_1,features_2.t()) / self.temperature
 
-        
-        pos_mask_matrix = (labels.unsqueeze(1) == labels.t().unsqueeze(0)).float()
+        labels = torch.arange(features_1.size(0))
+        pos_mask_matrix = (labels.unsqueeze(1) == labels.t().unsqueeze(0)).float().to("cuda")
         neg_mask_matrix = 1-pos_mask_matrix
 
         pos_mask_add = neg_mask_matrix * (-1000)
@@ -71,3 +82,4 @@ class ContrastiveLearning(nn.Module):
         loss = -torch.mean(loss)
         #print(loss)
         return loss
+        
