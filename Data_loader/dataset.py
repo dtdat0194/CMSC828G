@@ -67,11 +67,11 @@ class MicroClipsDataset(Dataset):
         
         # Load video
         video_path = os.path.join(self.video_dir, video_name)
-        print()
-        print("self.video_dir",self.video_dir)
-        print("video_name",video_name)
-        print("video_path",video_path)
-        print()
+        #print()
+        #print("self.video_dir",self.video_dir)
+        #print("video_name",video_name)
+        #print("video_path",video_path)
+        #print()
         video_data = load_and_transform_video_data([video_path],device = self.video_gpu_devices,clips_per_video = 1)
         #video_data = video_data.permute(1,0,2,3,4,5)
         video_data = video_data[0]
@@ -81,9 +81,9 @@ class MicroClipsDataset(Dataset):
                     B * S, *video_data.shape[2:]
                 )
                 '''
-        print()
-        print("video_data loaded")
-        print()
+        #print()
+        #print("video_data loaded")
+        #print()
         # Load corresponding audio
         audio_name = f"{file_id}_audio_{clip_index}.wav"
         audio_path = os.path.join(self.audio_dir, audio_name)
@@ -153,9 +153,9 @@ def main():
                     B * S, *spectrogram_data.shape[2:]
                 )
 
-        print(f"Video frame shape: {video_data.shape}")
-        print(f"Spectrogram shape: {spectrogram_data.shape}")
-        print(f"Video names: {batch['file_id']}")
+        #print(f"Video frame shape: {video_data.shape}")
+        #print(f"Spectrogram shape: {spectrogram_data.shape}")
+        #print(f"Video names: {batch['file_id']}")
         break  # Just test first batch 
 
 
