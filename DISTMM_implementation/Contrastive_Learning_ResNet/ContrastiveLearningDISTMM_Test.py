@@ -169,6 +169,13 @@ if __name__ == "__main__":
         #setting LOCL_Rank and WORLD_SIZE in the env, and grabbing local_rank for pinning to CUDA
     parser.add_argument("--local_rank", type=int, default=int(os.getenv("LOCAL_RANK", 0)))
     parser.add_argument("--local_world_size", type=int, default=1)
+<<<<<<< Updated upstream
+=======
+    parser.add_argument(
+    "--audio_rank", type=int, default=-1,
+    help="which rank handles audio; defaults to last rank if –audio_rank < 0")
+    parser.add_argument("--epochs", type=int, default=50)
+>>>>>>> Stashed changes
     args = parser.parse_args() 
 
     setup_dist()
