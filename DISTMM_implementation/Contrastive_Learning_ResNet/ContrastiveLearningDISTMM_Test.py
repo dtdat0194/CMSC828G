@@ -86,8 +86,6 @@ class ContrastiveLearning(nn.Module):
 
         self.temperature = temperature
         self.rank = dist.get_rank()
-        self.audio_rank = audio_rank
-
         self.device = torch.device(f"cuda:{int(os.environ['LOCAL_RANK'])}")
         self.vision_encoder = ModalityEncoder("vision", output_dim=feature_dim)
 
@@ -98,7 +96,6 @@ class ContrastiveLearning(nn.Module):
         video_features = self.vision_encoder(video_data)
         audio_features = self.audio_encoder(spectrogram_data)
         '''
-        #device = next(self.parameters()).device
 
         #trying to communicate across all to get our loss function.
         video_data = video_data.to(self.device, non_blocking=True)
@@ -172,29 +169,13 @@ if __name__ == "__main__":
         #setting LOCL_Rank and WORLD_SIZE in the env, and grabbing local_rank for pinning to CUDA
     parser.add_argument("--local_rank", type=int, default=int(os.getenv("LOCAL_RANK", 0)))
     parser.add_argument("--local_world_size", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=50)
     args = parser.parse_args() 
 
-
     setup_dist()
-
-    local_rank = args.local_rank
-    world_size = dist.get_world_size()
-    if args.audio_rank < 0:
-        audio_rank = world_size - 1
-    else:
-        audio_rank = args.audio_rank
-
-    #setup_dist()
     #device = torch.cuda.current_device()
 
-    model = ContrastiveLearning(feature_dim=128, temperature=0.07, audio_rank=audio_rank)
 
-    # 1) select and pin CUDA device
-    device = torch.device(f"cuda:{local_rank}")
-    torch.cuda.set_device(device)
-    # 2) move model (and all submodules) onto that GPU
-    model.to(device)
+    model = ContrastiveLearning(feature_dim=128, temperature=0.07)
 
     #Turning unused parameters on since audio isn't used on GPUs 0,1,2
     contrastivelearningDDP_model = DDP(model, device_ids=[int(os.environ["LOCAL_RANK"])],
