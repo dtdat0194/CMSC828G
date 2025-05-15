@@ -1,11 +1,57 @@
-'''
-Based on Coding assignment from CMSC848M-0101: Selected Topics in Information Processing; Multimodal Computer Vision
-'''
+import os, sys, tempfile, argparse
+
+from urllib.parse import urlparse
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from Backbones import VisionClassifier, AudioClassifier
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+#Creating Distributed-setup helpers
+def setup_dist():
+
+    #using pytorchs example of how to set this up.
+    #if we have a windows platform well us the gloo backed + Filestor
+    if sys.platform == "win32":
+        if"INIT_METHOD" in os.environ:
+            url = urlparse(os.environ["INIT_METHOD"])
+            if url.scheme.lower() != "file":
+                raise ValueError("Windows supports only FileStore on Gloo")
+            init_method = os.environ["INIT_METHOD"]
+        else:
+            init_method = f"file:///{os.path.join(tempfile.gettempdir(), 'ddp_example')}"
+
+        dist.init_process_group(
+            backend="gloo",
+            init_method=init_method,
+            rank=int(os.environ["RANK"]),
+            world_size=int(os.environ["WORLD_SIZE"]),
+
+        )
+    else:
+        #This says it's unreachable and I'm not exactly sure why, it looks fine to me.
+        #Going to use NCCL with all parameters supplied by torchrun.
+        env = {k: os.getenv(k) for k in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")}
+        print(f"[{os.getpid()}] Initialising process group with: {env}")
+        dist.init_process_group(backend="nccl")
+
+    #just making sure that torch cuda gpus are avaliable, we might want to remove this if it goofs
+    #our run for some reason.
+    if torch.cuda.is_available():
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+        print(
+            f"[{os.getpid()}] backend={dist.get_backend()}  "
+            f"rank={dist.get_rank()}/{dist.get_world_size()}  "
+            f"device={torch.cuda.current_device()}"
+        )
+
+def clean_dist():
+    #destroying our defualt process group
+    dist.destroy_process_group()
+
 
 class ModalityEncoder(nn.Module):
     def __init__(self, modality, output_dim):
@@ -37,9 +83,13 @@ class ContrastiveLearning(nn.Module):
     def __init__(self, feature_dim = 128, temperature=0.07):
         super().__init__()
         # TODO: Initialize encoders and parameters
-        self.vision_encoder = torch.nn.DataParallel(ModalityEncoder("vision", output_dim = feature_dim),device_ids=[0,1,2],output_device=3)
-        self.audio_encoder = ModalityEncoder("audio", output_dim = feature_dim).to("cuda:3")
+        self.vision_encoder = ModalityEncoder("vision", output_dim=feature_dim)
+
+        self.audio_encoder = ModalityEncoder("audio", output_dim=feature_dim)
+
+        self.audio_encoder.to("cuda:3")
         self.temperature = temperature
+        
     def forward(self, video_data, spectrogram_data):
         # TODO: Implement forward pass
         video_data = self.vision_encoder(video_data)
@@ -52,7 +102,7 @@ class ContrastiveLearning(nn.Module):
         print("spectrogram_data.get_device() ",spectrogram_data.get_device() )
 
         loss = self.info_nce_loss(video_data.to("cuda:3"),spectrogram_data.to("cuda:3"))
-        return video_data, spectrogram_data,loss
+        return video_data, spectrogram_data, loss
     '''
     def info_nce_loss(self, z1, z2, temperature):
 
@@ -82,4 +132,12 @@ class ContrastiveLearning(nn.Module):
         loss = -torch.mean(loss)
         #print(loss)
         return loss
+    
+    def parse_args():
+        parser = argparse.ArgumentParser()
+
+        #setting LOCL_Rank and WORLD_SIZE in the env, and grabbing local_rank for pinning to CUDA
+        parser.add_argument("--local_rank", type=int, default=int(os.getenv("LOCAL_RANK", 0)))
+        parser.add_argument("--local_world_size", type=int, default=1)
+        return parser.parse_args()
         
