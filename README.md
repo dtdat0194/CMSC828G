@@ -49,6 +49,7 @@ train_dataparallelism.py
 train_DistMM.py
 ```
 
+Don't forget to change the data root
 ### Datdaset
 
 Dataset is available at https://drive.google.com/drive/folders/1vn_c4l1pctuUu5LASAQziAjSaGSX1k8V?usp=sharing
