@@ -41,13 +41,13 @@ cd DISTMM_implementation/Contrastive_Learning_ResNet
 
 # Run 1 GPUs Training
 python train.py
+
+# Run 4 GPUs Naive Data Parallel Training
+train_dataparallelism.py
+
+# Run 4 GPUs Modality Aware Data Parallel Training
+train_DistMM.py
 ```
-
-### Command Line Arguments
-
-- `--epochs`: Number of training epochs (default: 50)
-- `--local_rank`: Local rank of the process (automatically set by torchrun)
-- `--local_world_size`: Number of processes per node (automatically set by torchrun)
 
 ### Datdaset
 
