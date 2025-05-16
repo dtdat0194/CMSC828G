@@ -39,8 +39,8 @@ The training script uses PyTorch's Distributed Data Parallel (DDP) to train acro
 # Navigate to the project directory
 cd DISTMM_implementation/Contrastive_Learning_ResNet
 
-# Run training with 4 GPUs
-torchrun --nproc_per_node=4 ContrastiveLearningDISTMM_Test.py --epochs 50
+# Run 1 GPUs Training
+python train.py
 ```
 
 ### Command Line Arguments
